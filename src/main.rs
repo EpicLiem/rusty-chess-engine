@@ -1,6 +1,8 @@
 use std::str::FromStr;
 use std;
 use chess::{Board, MoveGen, BitBoard, Piece, Square, Color, ChessMove};
+mod weights;
+use weights::*;
 
 const ALL_SQUARES: [Square; 64] = [Square::A1, Square::A2, Square::A3, Square::A4, Square::A5, Square::A6, Square::A7, Square::A8,
                                    Square::B1, Square::B2, Square::B3, Square::B4, Square::B5, Square::B6, Square::B7, Square::B8,
@@ -73,16 +75,16 @@ impl Node {
 
 
 fn evaluation_middlegame(board : &Board) -> i32 {
-    let mut score = 0;
-    let mut pawn_value = 100;
-    let mut knight_value = 300;
-    let mut bishop_value = 330;
-    let mut rook_value = 500;
-    let mut queen_value = 900;
-    let mut king_value = 20000;
+    let pawn_value = 100;
+    let knight_value = 300;
+    let bishop_value = 300;
+    let rook_value = 500;
+    let queen_value = 900;
+    let king_value = 10000;
 
     let mut piece_value = 1;
     let mut piece_count = 0;
+    let mut score = 0;
 
     for square in ALL_SQUARES.iter() {
         let piece = board.piece_on(*square);
@@ -90,101 +92,47 @@ fn evaluation_middlegame(board : &Board) -> i32 {
         let rank = square.get_rank();
         match piece {
             Some(Piece::Pawn) => {
-                piece_value = pawn_value;
-                // center control
-                if file.to_index() == 3 || file.to_index() == 4 {
-                    piece_value += 10;
-                }
-                // doubled pawns
-                if board.piece_on(Square::make_square(rank.up() , file)) == Some(Piece::Pawn) {
-                    piece_value -= 20;
-                }
-                // isolated pawns
-                if board.piece_on(Square::make_square(rank, file.right())) != Some(Piece::Pawn) && board.piece_on(Square::make_square(rank, file.left())) != Some(Piece::Pawn) {
-                    piece_value -= 10;
-                }
-                // backward pawns
-                if board.piece_on(Square::make_square(rank.up(), file.right())) == Some(Piece::Pawn) || board.piece_on(Square::make_square(rank.up() , file.left())) == Some(Piece::Pawn) {
-                    piece_value -= 10;
-                }
-                // passed pawns
-                if board.piece_on(Square::make_square(rank.down(), file.right())) != Some(Piece::Pawn) && board.piece_on(Square::make_square(rank.down(), file.right())) != Some(Piece::Pawn) {
-                    piece_value += 20;
-                }
+                piece_value = pawn_value + PAWN_MG_WT[file.to_index()][rank.to_index()];
                 piece_count += 1;
             },
             Some(Piece::Knight) => {
-                piece_value = knight_value;
-
-                // amount of moves
-                piece_value += chess::get_knight_moves(*square).popcnt();
-
+                piece_value = knight_value + KNIGHT_MG_WT[file.to_index()][rank.to_index()];
                 piece_count += 1;
             },
             Some(Piece::Bishop) => {
-                piece_value = bishop_value;
-
-                // amount of moves
-                piece_value += chess::get_bishop_moves(*square, *board.combined()).popcnt();
-
+                piece_value = bishop_value + BISHOP_MG_WT[file.to_index()][rank.to_index()];
                 piece_count += 1;
             },
             Some(Piece::Rook) => {
-                piece_value = rook_value;
-
-                // file control
-                if file.to_index() == 0 || file.to_index() == 7 {
-                    piece_value += 10;
-                }
-                // amount of moves
-                piece_value += chess::get_rook_moves(*square, *board.combined()).popcnt();
-
-                // rook on open file
-                if board.piece_on(Square::make_square(rank.up(), file)) != Some(Piece::Pawn) && board.piece_on(Square::make_square(rank.down(), file)) != Some(Piece::Pawn) {
-                    piece_value += 10;
-                }
+                piece_value = rook_value + ROOK_MG_WT[file.to_index()][rank.to_index()];
                 piece_count += 1;
             },
             Some(Piece::Queen) => {
-                piece_value = queen_value;
-
-                // queen on open file
-                if board.piece_on(Square::make_square(rank.up(), file)) != Some(Piece::Pawn) && board.piece_on(Square::make_square(rank.down(), file)) != Some(Piece::Pawn) {
-                    piece_value += 10;
-                }
-
+                piece_value = queen_value + QUEEN_MG_WT[file.to_index()][rank.to_index()];
                 piece_count += 1;
             },
             Some(Piece::King) => {
-                piece_value = king_value;
-                // safety
-                piece_value -= chess::get_king_moves(*square).popcnt();
-
+                piece_value = king_value + KING_MG_WT[file.to_index()][rank.to_index()];
                 piece_count += 1;
             },
-            None => {
-                piece_value = 0;
-                piece_count = 0;
-            },
+            None => (),
         }
-        if board.color_on(*square) == Some(Color::White) {
-            score += piece_value as i32;
-        } else {
-            score -= piece_value as i32;
+
+            if board.side_to_move() == Color::White {
+                score += piece_value;
+                if board.status() == chess::BoardStatus::Checkmate {
+                    score -= 10000000;
+                }
+            } else {
+                score -= piece_value;
+                if board.status() == chess::BoardStatus::Checkmate {
+                    score += 10000000;
+                }
+            }
+
         }
-    }
-    if board.status() == chess::BoardStatus::Checkmate {
-        if board.side_to_move() == Color::White {
-            score = -100000;
-        } else {
-            score = 100000;
-        }
-    }
-    if board.status() == chess::BoardStatus::Stalemate {
-        score = 0;
-    }
     score as i32
-}
+    }
 //
 // fn evaluation_function(&board : Board) -> i32 {
 //     // TODO: implement evaluation function that returns a score for the board using middlegame and endgame evaluation functions
