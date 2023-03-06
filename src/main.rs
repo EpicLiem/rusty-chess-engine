@@ -13,8 +13,8 @@ const ALL_SQUARES: [Square; 64] = [Square::A1, Square::A2, Square::A3, Square::A
                                    Square::G1, Square::G2, Square::G3, Square::G4, Square::G5, Square::G6, Square::G7, Square::G8,
                                    Square::H1, Square::H2, Square::H3, Square::H4, Square::H5, Square::H6, Square::H7, Square::H8];
 
-const ALPHA: i32 = -5000000;
-const BETA: i32 = 5000000;
+const ALPHA: i32 = -10000000;
+const BETA: i32 = 10000000;
 
 struct Node {
     board: Board,
@@ -35,9 +35,11 @@ impl Node {
     }
     fn search(&mut self, depth: i32) -> i32 {
         // search using alpha beta pruning
+        let mut early_exit = 0;
         self.depth = depth;
         if depth == 0 || self.board.status() != chess::BoardStatus::Ongoing {
             self.score = evaluation_middlegame(&self.board);
+            self.depth = 0;
             return depth;
         }
         let mut alpha = ALPHA;
@@ -46,12 +48,12 @@ impl Node {
             self.score = ALPHA;
             for m in MoveGen::new_legal(&self.board) {
                 let mut child = Node::new(self.board.make_move_new(m));
-                let early_exit = child.search(depth - 1);
+                early_exit = child.search(depth - 1);
                 self.depth -= early_exit;
                 self.score = self.score.max(child.score);
                 self.children.push(child);
                 alpha = std::cmp::max(alpha, self.score);
-                if beta <= alpha {
+                if beta <= alpha || early_exit != 0 {
                     break;
                 }
             }
@@ -59,17 +61,17 @@ impl Node {
             self.score = BETA;
             for m in MoveGen::new_legal(&self.board) {
                 let mut child = Node::new(self.board.make_move_new(m));
-                let early_exit = child.search(depth - 1);
+                early_exit = child.search(depth - 1);
                 self.depth -= early_exit;
                 self.score = self.score.min(child.score);
                 self.children.push(child);
                 beta = std::cmp::min(beta, self.score);
-                if beta <= alpha {
+                if beta <= alpha || early_exit != 0 {
                     break;
                 }
             }
         }
-        return 0;
+        return early_exit;
     }
 }
 
@@ -121,12 +123,12 @@ fn evaluation_middlegame(board : &Board) -> i32 {
             if board.side_to_move() == Color::White {
                 score += piece_value;
                 if board.status() == chess::BoardStatus::Checkmate {
-                    score -= 10000000;
+                    score = 10000000;
                 }
             } else {
                 score -= piece_value;
                 if board.status() == chess::BoardStatus::Checkmate {
-                    score += 10000000;
+                    score = 10000000;
                 }
             }
 
@@ -156,12 +158,16 @@ fn best_move(board : &Board) -> ChessMove {
             let tboard = board.make_move_new(m);
             let mut node = Node::new(tboard);
             node.search(5);
-            if node.score > best_score {
+            println!("Move: {}, Score: {}, Depth: {}", m.to_string(), node.score, node.depth);
+            if node.score == 10000000 && node.depth == 0 {
+                return m;
+            }
+            if best_score == 100000 && node.score == 100000 && node.depth < best_node.depth {
                 best_score = node.score;
                 best_node = node;
                 best_move = m;
             }
-            else if best_score == 100000 && node.score == 100000 && node.depth < best_node.depth {
+            else if node.score > best_score {
                 best_score = node.score;
                 best_node = node;
                 best_move = m;
@@ -182,7 +188,7 @@ fn best_move(board : &Board) -> ChessMove {
 }
 
 fn main() {
-    let board = Board::from_str("8/8/8/8/1K6/2Q5/8/1k6 w - - 0 1").expect("Invalid FEN");
+    let board = Board::from_str("8/8/8/4Q3/2K5/8/8/1k6 w - - 4 3").expect("Invalid FEN");
     let mut node = Node::new(board);
     node.search(5);
     println!("{:?}, {:?}, {:?}", evaluation_middlegame(&board), node.score , best_move(&board).to_string());
