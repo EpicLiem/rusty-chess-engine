@@ -3,6 +3,7 @@ use std;
 use std::cmp::Ordering;
 use std::str::FromStr;
 use std::time::{Duration, Instant};
+use std::sync::mpsc;
 
 use crate::weights::*;
 
@@ -63,8 +64,8 @@ pub struct Score {
 
 pub(crate) struct Searcher {
     board: Board,
-    depth: u8,
-    best_move: ChessMove,
+    pub(crate) depth: u8,
+    pub(crate) best_move: ChessMove,
     best_score: Score,
     children: Vec<Searcher>,
 }
@@ -164,7 +165,7 @@ impl Searcher {
         }
         best_score
     }
-    fn alpha_beta_with_time(&mut self, time: Duration) -> Score {
+    pub(crate) fn alpha_beta_with_time(&mut self, time: Duration) -> Score {
         let start = Instant::now();
         let mut depth = 1;
         let mut best_score = Score {
@@ -182,6 +183,16 @@ impl Searcher {
             self.depth += 1;
         }
         best_score
+    }
+    pub(crate) fn alpha_beta_until_stopped(&mut self, reciever: mpsc::Receiver<bool>) -> Score {
+        loop {
+            if reciever.try_recv() == Ok(true) {
+                break;
+            }
+            self.alpha_beta(ALPHA, BETA);
+            self.depth += 1;
+        }
+        return self.best_score;
     }
 }
 
@@ -500,14 +511,20 @@ pub(crate) fn evaluation_middlegame(board: &Board) -> Score {
     return Score::new_eval(evaluation);
 }
 
-pub fn best_move(board: &Board, depth: u8) -> (chess::ChessMove, i32) {
+pub fn best_move(board: &Board, depth: u8) -> (ChessMove, i32) {
     let mut searcher = Searcher::new(board, depth);
     searcher.alpha_beta(ALPHA, BETA);
     return (searcher.best_move, searcher.best_score.eval);
 }
 
-pub fn best_move_with_time(board: &Board, time: u64) -> (chess::ChessMove, i32) {
+pub fn best_move_with_time(board: &Board, time: u64) -> (ChessMove, i32) {
     let mut searcher = Searcher::new(board, 0);
     searcher.alpha_beta_with_time(Duration::from_millis(time));
     return (searcher.best_move, searcher.best_score.eval);
+}
+
+pub fn best_move_infinite_thread(board: &Board, reciever: mpsc::Receiver<bool>) -> (ChessMove, i32) {
+    let mut searcher = Searcher::new(board, 1);
+    searcher.alpha_beta_until_stopped(reciever);
+    return (searcher.best_move.clone(), searcher.best_score.eval.clone());
 }
