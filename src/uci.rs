@@ -162,7 +162,7 @@ impl Listener {
     // }
 
     fn search(&mut self) {
-        let (best_move, score) = best_move(&self.uci.board, 4);
+        let (best_move, score) = best_move_with_time(&self.uci.board, 1000);
         println!("bestmove {}", best_move);
     }
 

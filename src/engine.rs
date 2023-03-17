@@ -31,6 +31,8 @@ const BACKWARD_PAWN_MG_VAL: i32 = -5;
 const PASSED_PAWN_MG_VAL: i32 = 10;
 const CENTER_CONTROL_MG_VAL: i32 = 5;
 const KING_SAFETY_MG_VAL: i32 = 5;
+const CASTLING_BOTH_MG_VAL: i32 = 20;
+const CASTLING_ONE_MG_VAL: i32 = 10;
 
 const FILES: [BitBoard; 8] = [
     BitBoard(0x0101010101010101),
@@ -121,7 +123,7 @@ impl Searcher {
         if self.board.side_to_move() == Color::White {
             for m in MoveGen::new_legal(&self.board) {
                 let mut child = Searcher::new(&self.board.make_move_new(m), self.depth - 1);
-                let score = child.alpha_beta(beta.eval, alpha.eval);
+                let score = child.alpha_beta(alpha.eval, beta.eval);
                 children.push(child);
                 if score > best_score {
                     best_score = score;
@@ -138,7 +140,7 @@ impl Searcher {
         } else {
             for m in MoveGen::new_legal(&self.board) {
                 let mut child = Searcher::new(&self.board.make_move_new(m), self.depth - 1);
-                let score = child.alpha_beta(beta.eval, alpha.eval);
+                let score = child.alpha_beta(alpha.eval, beta.eval);
                 children.push(child);
                 if score < best_score {
                     best_score = score;
@@ -350,6 +352,12 @@ pub(crate) fn evaluation_middlegame(board: &Board) -> Score {
             if white_rooks & RANKS[7] != BitBoard::new(0) {
                 evaluation += ROOK_ON_8TH_MG_VAL;
             }
+            // castling rights
+            if board.castle_rights(Color::White) == chess::CastleRights::Both {
+                evaluation += CASTLING_BOTH_MG_VAL;
+            } else if board.castle_rights(Color::White) != chess::CastleRights::NoRights{
+                evaluation += CASTLING_ONE_MG_VAL;
+            }
         }
 
         if black_rook_count > 0 {
@@ -382,6 +390,12 @@ pub(crate) fn evaluation_middlegame(board: &Board) -> Score {
             // rook on 8th rank
             if black_rooks & RANKS[0] != BitBoard::new(0) {
                 evaluation -= ROOK_ON_8TH_MG_VAL;
+            }
+            // castling rights
+            if board.castle_rights(Color::Black) == chess::CastleRights::Both {
+                evaluation -= CASTLING_BOTH_MG_VAL;
+            } else if board.castle_rights(Color::Black) != chess::CastleRights::NoRights{
+                evaluation -= CASTLING_ONE_MG_VAL;
             }
         }
 

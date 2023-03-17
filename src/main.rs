@@ -11,8 +11,8 @@ use std::time::{Duration, Instant};
 use std::thread;
 use std::sync::mpsc::{channel, Sender, Receiver};
 
-fn debugging() {
-    let board = Board::from_str("8/8/8/8/8/K7/8/1k1Q4 b - - 0 1").expect("Invalid FEN");
+fn debugging(fen: &str) {
+    let board = Board::from_str(fen).expect("Invalid FEN");
     println!(
         "{:?}, {:?}, {:?}",
         evaluation_middlegame(&board),
@@ -74,5 +74,5 @@ fn find_time_increase_per_depth(){
 
 
 fn main() {
-    find_time_increase_per_depth();
+    uci::main();
 }
